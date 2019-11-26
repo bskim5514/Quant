@@ -1,0 +1,107 @@
+---
+title: "PCR_RIM"
+author: "BSKIM"
+date: '2019 11 25 '
+output:
+  pdf_document:
+    toc: yes
+    toc_depth: '2'
+    latex_engine: xelatex
+    includes:
+      in_header: MyPreamble
+  html_document:
+    code_folding: show
+    highlight: textmate
+    number_sections: no
+    theme: cosmo
+    toc: yes
+    toc_depth: 2
+    toc_float: yes
+---
+#summary
+가치 factor에 노출시켜 유니버셜을 선정한다. 
+이 유니버셜의 RIM으로 적정가치 대비 낮은 stocks을 선정한다. 
+
+#선정방법
+##factor에 노출시켜 주식을 선정.
+###package loading
+```{r loading_package, message=FALSE}
+library(stringr)
+library(magrittr)
+library(dplyr)
+library(xts)
+library(PerformanceAnalytics)
+library(httr)
+library(rvest)
+library(tidyquant)
+library(astsa)
+library(tseries)
+library(PortfolioAnalytics)
+library(ROI)
+library(ROI.plugin.quadprog)
+library(ROI.plugin.glpk)
+library(ggplot2)
+library(tidyr)
+library(forcats)
+```
+###DATA loading 
+저PCR과 영업이익 3년 연속 흑자 기업 
+퀀트킹에서 **시가총액+저PCR+영업이익** 3년 연속 흑자 기업으로 sorting하였음.  
+```{r data_loading,message=TRUE}
+sort_stock <- read.csv("data/PCR_RIM_191126.csv",
+                       stringsAsFactors = F)
+str(sort_stock)
+```
+###DATA cleaning
+```{r cleaning, message=TRUE}
+select_list <- 
+sort_stock %>% select("code" = "코드.번호", 
+                      "name" = "회사명",
+                      "price" = "주가..원.",
+                      "mktc" = "시가총액..억.",
+                      "shares" = "상장주식수..만주.",
+                      "PCR" = "과거.PCR",
+                      "ROE_5mean" = "X5년평균.ROE",
+                      "ROE_E" = "X1년후.ROE....",
+                      "capital" = "자본..억.")
+#A제거하여, 6개 코드로 변경 
+select_list$code <- str_remove(select_list$code, "A")  
+
+#cleaing된 DATA확인
+select_list[c(1:5,nrow(select_list)),] %>% knitr::kable()
+```
+###select stocks 100
+```{r select, message=TRUE}
+select_PCR_100 <- 
+select_list %>% arrange(PCR) %>% filter(PCR >0 & ROE_5mean > 0) %>% slice(1:100)
+
+select_PCR_100[c(1:5,nrow(select_PCR_100)),] %>% knitr::kable()
+```
+
+##RIM으로 적정가치 계산
+적정가치와 현 시가총액의 -20%된 기업을 선정한다. 
+```{r RIM, message=TRUE}
+select_PCR_100 %>% 
+  mutate(RIM = capital + capital*((ROE_E - 8.16)/8.16)/100,
+         FarePrice = RIM*10000/shares,
+         spread = FarePrice-price,
+         spread_ratio = (FarePrice-price)/price,
+         select_stock = ifelse(price>FarePrice*0.8, "short","long")) %>%
+         arrange(desc(spread_ratio)) %>% 
+         select(code:name,price,FarePrice,ROE_E,mktc,capital:spread_ratio) %>% 
+         knitr::kable()
+```
+
+
+##매입 stocks 결정 
+매입이 결정된 stocks으로 simluation을 실시한다. 
+
+
+
+
+
+
+
+
+
+
